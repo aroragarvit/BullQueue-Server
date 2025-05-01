@@ -1,0 +1,34 @@
+{
+  "name": "jsonl-editor-server",
+  "version": "1.0.0",
+  "description": "Express backend for processing JSONL files with async queue",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "worker": "node worker-process.js",
+    "dev:worker": "nodemon worker-process.js",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:worker\"",
+    "start:all": "concurrently \"npm run start\" \"npm run worker\"",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0",
+    "bullmq": "^4.13.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "drizzle-orm": "^0.28.6",
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "postgres": "^3.4.3",
+    "redis": "^4.6.10"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+} 
