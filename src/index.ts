@@ -54,36 +54,6 @@ app.post('/api/webhook/file-uploaded', async (req: Request, res: Response) => {
   }
 });
 
-// Route to get job progress
-app.get('/api/jobs/:jobId/progress', async (req: Request, res: Response) => {
-  try {
-    const { jobId } = req.params;
-    
-    // Get job from queue
-    const job = await queue.getJob(jobId);
-    
-    if (!job) {
-      return res.status(404).json({ error: 'Job not found' });
-    }
-    
-    // Get job progress
-    const progress = await job.progress;
-    const state = await job.getState();
-    
-    res.status(200).json({
-      jobId: job.id,
-      progress: progress || 0,
-      state,
-      fileId: job.data.fileId,
-      fileName: job.data.fileName
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error getting job progress:', errorMessage);
-    res.status(500).json({ error: errorMessage });
-  }
-});
-
 // Setup the worker to process queue items
 // Note: This worker runs in the same Node.js process as the Express server
 // For better performance, consider running the worker in a separate process using src/worker-process.ts

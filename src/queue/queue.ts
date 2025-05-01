@@ -22,7 +22,7 @@ const queue = new Queue<FileProcessingJob>('file-processing', {
       type: 'exponential',   // Exponential backoff strategy
       delay: 5000            // Initial delay in ms (5 seconds)
     },
-    removeOnComplete: true,  // Remove jobs from queue when complete
+    removeOnComplete: false,  // Remove jobs from queue when complete
     removeOnFail: false      // Keep failed jobs for inspection
   }
 });
