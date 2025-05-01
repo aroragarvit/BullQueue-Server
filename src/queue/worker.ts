@@ -8,10 +8,11 @@ import { promisify } from 'util';
 import os from 'os';
 import http from 'http';
 import https from 'https';
-import { createConversation, linkFileToConversation } from '../database';
+import { db } from '../database';
+import { conversations, fileConversations } from '../database/schema';
 
-const writeFileAsync = promisify(fs.writeFile);
 const unlinkAsync = promisify(fs.unlink);
+const BATCH_SIZE = 50; // Process conversations in batches of 50
 
 // Function to download a file from a URL
 async function downloadFile(url: string): Promise<string> {
@@ -52,35 +53,95 @@ async function downloadFile(url: string): Promise<string> {
   }
 }
 
-// Function to parse JSONL file and create conversations
-async function parseJsonlFile(filePath: string, fileId: string): Promise<{ totalConversations: number, conversationIds: string[] }> {
+// Function to count total lines in a file
+async function countFileLines(filePath: string): Promise<number> {
+  const fileContent = await fs.promises.readFile(filePath, 'utf-8');
+  return fileContent.split('\n').filter(line => line.trim() !== '').length;
+}
+
+// Function to insert a batch of conversations and their file links
+async function insertConversationBatch(conversationBatch: any[], fileId: string): Promise<string[]> {
+  if (conversationBatch.length === 0) return [];
+  
+  // Insert conversations in a batch
+  const conversationsToInsert = conversationBatch.map(jsonData => ({
+    messages: jsonData,
+    deleted: false,
+    edited: false
+  }));
+  
+  const insertedConversations = await db.insert(conversations)
+    .values(conversationsToInsert)
+    .returning();
+  
+  const conversationIds = insertedConversations.map(c => c.id);
+  
+  // Link conversations to file in a batch
+  const fileConversationsToInsert = conversationIds.map(conversationId => ({
+    fileId,
+    conversationId
+  }));
+  
+  await db.insert(fileConversations)
+    .values(fileConversationsToInsert);
+  
+  return conversationIds;
+}
+
+// Function to parse JSONL file and create conversations in batches
+async function parseJsonlFile(filePath: string, fileId: string, job: any): Promise<{ totalConversations: number, conversationIds: string[] }> {
   try {
+    // Count total lines for progress tracking
+    const totalLines = await countFileLines(filePath);
+    let processedLines = 0;
+    
     const fileContent = await fs.promises.readFile(filePath, 'utf-8');
     const lines = fileContent.split('\n').filter(line => line.trim() !== '');
     
-    const conversationIds: string[] = [];
+    const allConversationIds: string[] = [];
+    let currentBatch: any[] = [];
     
     for (const line of lines) {
       try {
         const jsonData = JSON.parse(line);
+        currentBatch.push(jsonData);
         
-        // Create a conversation record
-        const conversation = await createConversation(jsonData);
-        
-        // Link the conversation to the file
-        await linkFileToConversation(fileId, conversation.id);
-        
-        conversationIds.push(conversation.id);
+        // When batch size is reached or on the last item, process the batch
+        if (currentBatch.length >= BATCH_SIZE || processedLines === lines.length - 1) {
+          const batchConversationIds = await insertConversationBatch(currentBatch, fileId);
+          allConversationIds.push(...batchConversationIds);
+          
+          // Update progress
+          processedLines += currentBatch.length;
+          const progress = Math.floor((processedLines / totalLines) * 100);
+          await job.updateProgress(progress);
+          
+          console.log(`Processed ${processedLines}/${totalLines} conversations (${progress}%)`);
+          
+          // Reset the batch
+          currentBatch = [];
+        }
       } catch (parseError) {
         const errorMessage = parseError instanceof Error ? parseError.message : 'Unknown error';
         console.error('Error parsing line:', errorMessage);
         // Continue with next line instead of failing the whole job
+        processedLines++;
       }
     }
     
+    // Process any remaining items in the batch
+    if (currentBatch.length > 0) {
+      const batchConversationIds = await insertConversationBatch(currentBatch, fileId);
+      allConversationIds.push(...batchConversationIds);
+      processedLines += currentBatch.length;
+      
+      // Final progress update
+      await job.updateProgress(100);
+    }
+    
     return {
-      totalConversations: conversationIds.length,
-      conversationIds
+      totalConversations: allConversationIds.length,
+      conversationIds: allConversationIds
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -106,13 +167,16 @@ export function setupWorker() {
       // Update status to processing
       await updateFileStatus(job.data.fileId, FileProcessingStatus.PROCESSING);
       
+      // Initialize progress
+      await job.updateProgress(0);
+      
       // Step 1: Download file from URL
       console.log(`Downloading file from URL: ${job.data.fileUrl}`);
       const filePath = await downloadFile(job.data.fileUrl);
       
       // Step 2: Process the file content
       console.log('Parsing JSONL file...');
-      const result = await parseJsonlFile(filePath, job.data.fileId);
+      const result = await parseJsonlFile(filePath, job.data.fileId, job);
       
       // Step 3: Update file status to completed
       await updateFileStatus(job.data.fileId, FileProcessingStatus.COMPLETED, {
@@ -152,6 +216,10 @@ export function setupWorker() {
   
   worker.on('error', (error) => {
     console.error('Worker error:', error);
+  });
+  
+  worker.on('progress', (job, progress) => {
+    console.log(`Job ${job.id} is ${progress}% complete`);
   });
   
   console.log('File processing worker started');

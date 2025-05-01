@@ -2,8 +2,8 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
-import {  getFileById } from './database';
-import { addFileProcessingJob } from './queue/queue';
+import { getFileById } from './database';
+import { addFileProcessingJob, queue } from './queue/queue';
 import { setupWorker } from './queue/worker';
 import { FileProcessingStatus } from './types';
 
@@ -54,46 +54,32 @@ app.post('/api/webhook/file-uploaded', async (req: Request, res: Response) => {
   }
 });
 
-// Route to get file status
-app.get('/api/files/:fileId', async (req: Request, res: Response) => {
+// Route to get job progress
+app.get('/api/jobs/:jobId/progress', async (req: Request, res: Response) => {
   try {
-    const { fileId } = req.params;
+    const { jobId } = req.params;
     
-    // Get file details from database
-    const fileRecord = await getFileById(fileId);
+    // Get job from queue
+    const job = await queue.getJob(jobId);
     
-    if (!fileRecord) {
-      return res.status(404).json({ error: 'File not found' });
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
     }
     
-    // Determine processing status
-    let status: FileProcessingStatus;
-    if (fileRecord.synced) {
-      status = FileProcessingStatus.COMPLETED;
-    } else {
-      status = FileProcessingStatus.PENDING;
-      
-      if (fileRecord.notes) {
-        try {
-          const meta = JSON.parse(fileRecord.notes);
-          if (meta.error) {
-            status = FileProcessingStatus.FAILED;
-          } else if (fileRecord.notes.includes('processing')) {
-            status = FileProcessingStatus.PROCESSING;
-          }
-        } catch (e) {
-          // Ignore JSON parse errors in notes field
-        }
-      }
-    }
+    // Get job progress
+    const progress = await job.progress;
+    const state = await job.getState();
     
     res.status(200).json({
-      ...fileRecord,
-      status
+      jobId: job.id,
+      progress: progress || 0,
+      state,
+      fileId: job.data.fileId,
+      fileName: job.data.fileName
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error getting file status:', errorMessage);
+    console.error('Error getting job progress:', errorMessage);
     res.status(500).json({ error: errorMessage });
   }
 });
@@ -111,4 +97,5 @@ if (require.main === module) {
   });
 }
 
+// Export for testing or programmatic usage
 export default app; 

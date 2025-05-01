@@ -9,6 +9,8 @@ This is a TypeScript Express server for processing JSONL files with a BullMQ que
 - Background worker process for CPU-intensive tasks
 - PostgreSQL database with Drizzle ORM
 - TypeScript for type safety
+- Batch processing (50 records per batch) for efficient database insertion
+- Real-time progress tracking
 
 ## Project Structure
 
@@ -143,6 +145,23 @@ Response:
 }
 ```
 
+### Get Job Progress
+
+```
+GET /api/jobs/:jobId/progress
+```
+
+Response:
+```json
+{
+  "jobId": "job-id",
+  "progress": 75,
+  "state": "active",
+  "fileId": "uuid-of-file",
+  "fileName": "example.jsonl"
+}
+```
+
 ## File Processing Flow
 
 1. Client uploads a file to storage and gets a URL
@@ -152,10 +171,21 @@ Response:
 5. Worker process picks up the job and:
    - Downloads the file from the URL
    - Parses the JSONL file line by line
+   - Processes conversations in batches of 50 for better performance
    - Creates conversation records in the database
    - Links conversations to the file
    - Updates the file status to completed
-6. Client can check processing status via GET /api/files/:fileId
+   - Reports progress throughout the operation
+6. Client can check processing status via GET /api/files/:fileId or GET /api/jobs/:jobId/progress
+
+## Batch Processing
+
+The server uses batch processing to efficiently handle large JSONL files:
+
+- Each batch contains up to 50 conversation records
+- Batches are processed sequentially to avoid overwhelming the database
+- Progress is reported as a percentage of total lines processed
+- Database insertions use bulk operations for better performance
 
 ## Database Schema
 

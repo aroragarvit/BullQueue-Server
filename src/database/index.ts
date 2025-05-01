@@ -16,19 +16,7 @@ const client = postgres(connectionString, {
 
 export const db = drizzle(client);
 
-// File related database operations
-export const createFileRecord = async (fileName: string, fileUrl: string, notes?: string) => {
-  const [fileRecord] = await db.insert(files)
-    .values({
-      fileName,
-      fileUrl,
-      notes,
-      synced: false
-    })
-    .returning();
-  
-  return fileRecord;
-};
+
 
 export const getFileById = async (fileId: string) => {
   const [fileRecord] = await db.select().from(files).where(eq(files.id, fileId));
@@ -49,27 +37,3 @@ export const updateFileStatus = async (fileId: string, status: FileProcessingSta
     
   return updated;
 };
-
-// Conversation related database operations
-export const createConversation = async (messagesData: any) => {
-  const [conversation] = await db.insert(conversations)
-    .values({
-      messages: messagesData,
-      deleted: false,
-      edited: false
-    })
-    .returning();
-  
-  return conversation;
-};
-
-export const linkFileToConversation = async (fileId: string, conversationId: string) => {
-  const [link] = await db.insert(fileConversations)
-    .values({
-      fileId,
-      conversationId
-    })
-    .returning();
-  
-  return link;
-}; 
