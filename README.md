@@ -1,199 +1,166 @@
-# JSONL Editor Server
+# JSONL File Processing Server
 
-A dedicated Express backend for handling the asynchronous processing of JSONL files offloaded from the Next.js frontend.
+This is a TypeScript Express server for processing JSONL files with a BullMQ queue system.
 
-## Architecture
+## Features
 
-This implementation uses:
+- REST API for file processing
+- Asynchronous job queue with Redis
+- Background worker process for CPU-intensive tasks
+- PostgreSQL database with Drizzle ORM
+- TypeScript for type safety
 
-- **Express**: Web server framework
-- **BullMQ**: Redis-backed job queue for reliable asynchronous processing
-- **Supabase**: For file storage
-- **PostgreSQL**: For data storage
-- **Redis**: For queue management
+## Project Structure
 
-### Processing Architecture
+```
+server/
+├── src/                 # TypeScript source code
+│   ├── database/        # Database models and connection
+│   ├── queue/           # BullMQ queue configuration
+│   ├── types/           # TypeScript type definitions
+│   ├── index.ts         # Main Express application
+│   └── worker-process.ts # Standalone worker process
+├── dist/                # Compiled JavaScript output
+├── tsconfig.json        # TypeScript configuration
+├── package.json        
+└── .env.local           # Environment variables (create from .env.example)
+```
 
-This backend supports two deployment models:
-
-1. **Single Process** (Default): Express server and BullMQ worker run in the same Node.js process
-   - Simpler deployment
-   - Suitable for low to moderate workloads
-   - Limited scalability (worker tasks share resources with the API server)
-
-2. **Multiple Processes**: Express server and BullMQ worker run as separate processes
-   - Better isolation between API responses and background processing
-   - Improved performance for CPU-intensive file processing
-   - Ability to scale workers independently
-   - Requires running multiple processes
-
-### File Processing Flow
-
-The system supports two primary flows:
-
-1. **Direct Upload**: Files are uploaded directly to the Express server
-   - Client uploads to `/api/upload` endpoint
-   - Server uploads to Supabase and enqueues processing
-
-2. **Webhook-based** (Recommended): Files are uploaded directly to Supabase
-   - Client uploads file directly to Supabase storage (bypassing server)
-   - Supabase triggers a webhook to `/api/webhook/file-uploaded`
-   - Server receives the webhook and enqueues the file for processing
-   - This approach is more efficient as it avoids double-handling large files
-
-## Setup Instructions
+## Setup
 
 ### Prerequisites
 
-1. Node.js (v16+)
-2. Redis server
-3. PostgreSQL database
-4. Supabase account with storage bucket configured
+- Node.js >= 16
+- Redis server
+- PostgreSQL database
 
 ### Installation
 
-1. Navigate to the server directory
-2. Install dependencies:
+1. Install dependencies:
 
 ```bash
-cd server
 npm install
 ```
 
-3. Copy the environment variables file and update with your configuration:
+2. Create a .env.local file with the required environment variables:
+
+```
+DATABASE_URL=postgres://username:password@localhost:5432/database
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=optional_password
+PORT=3001
+```
+
+3. Build the TypeScript code:
 
 ```bash
-cp .env.example .env
+npm run build
 ```
 
-4. Update the `.env` file with your database credentials, Supabase credentials, and Redis configuration.
+### Development
 
-### Database Setup
-
-Ensure your PostgreSQL database has the required tables:
-
-```sql
-CREATE TABLE files (
-  id SERIAL PRIMARY KEY,
-  file_name VARCHAR(255) NOT NULL,
-  status VARCHAR(50) NOT NULL,
-  metadata JSONB,
-  created_at TIMESTAMP NOT NULL,
-  updated_at TIMESTAMP NOT NULL
-);
-
-CREATE TABLE conversations (
-  id VARCHAR(255) PRIMARY KEY,
-  file_id INTEGER REFERENCES files(id),
-  conversation_data JSONB NOT NULL,
-  created_at TIMESTAMP NOT NULL
-);
-```
-
-### Supabase Setup
-
-1. Create a Supabase project
-2. Create a storage bucket named `jsonl-files`
-3. Set appropriate permissions (public, authenticated, or service role)
-4. Get your project URL and service role key for the `.env` file
-5. For webhook setup:
-   - Configure storage event triggers in Supabase dashboard
-   - Set webhook URL to point to your server's `/api/webhook/file-uploaded` endpoint
-
-## Running the Application
-
-### Development (Single Process)
+Run the development server with hot reloading:
 
 ```bash
 npm run dev
 ```
 
-### Development (Multi Process)
+Run the development worker with hot reloading:
 
 ```bash
-# In terminal 1
-npm run dev
-
-# In terminal 2
 npm run dev:worker
+```
 
-# Or using concurrently to start both
+Or run both simultaneously:
+
+```bash
 npm run dev:all
 ```
 
-### Production (Single Process)
+### Production
+
+For production deployment, you can use the provided PM2 configuration:
 
 ```bash
-npm start
+npm run build
+pm2 start ecosystem.config.js
 ```
 
-### Production (Multi Process)
+Or run with Node directly:
 
 ```bash
-# Using concurrently to start both
 npm run start:all
-
-# Or using process management tools like PM2
-pm2 start ecosystem.config.js
 ```
 
 ## API Endpoints
 
-- `POST /api/upload` - Upload a JSONL file for processing
-- `POST /api/webhook/file-uploaded` - Webhook endpoint for Supabase storage events
-- `GET /api/status/:fileId` - Check processing status of a file
+### Create a File Record
 
-## Integration with Next.js Frontend
-
-### Recommended: Supabase Direct Upload Flow
-
-```javascript
-// Direct upload to Supabase from frontend
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  'https://your-project.supabase.co',
-  'your-public-anon-key'
-);
-
-const uploadFileToSupabase = async (file) => {
-  const fileExt = file.name.split('.').pop();
-  const fileName = `${Math.random()}.${fileExt}`;
-  const filePath = `uploads/${fileName}`;
-  
-  // Upload directly to Supabase
-  const { data, error } = await supabase.storage
-    .from('jsonl-files')
-    .upload(filePath, file);
-    
-  if (error) throw error;
-  
-  // Webhook will handle processing automatically
-  // You can poll the status endpoint to check progress
-  return { filePath, fileName };
-};
+```
+POST /api/files
 ```
 
-### Checking Status
-
-```javascript
-const checkStatus = async (fileId) => {
-  const response = await fetch(`http://your-express-backend/api/status/${fileId}`);
-  return response.json();
-};
+Request body:
+```json
+{
+  "fileName": "example.jsonl",
+  "fileUrl": "https://example.com/path/to/file.jsonl",
+  "notes": "Optional notes about the file"
+}
 ```
 
-## Performance Considerations
+### Process a File
 
-### Handling Multiple Uploads
+```
+POST /api/webhook/file-uploaded
+```
 
-The system can handle multiple uploads simultaneously:
+Request body:
+```json
+{
+  "fileId": "uuid-of-file"
+}
+```
 
-1. **Concurrent Requests**: Express handles multiple upload requests concurrently
-2. **Queue Management**: BullMQ queues jobs in Redis, ensuring none are lost
-3. **Worker Processing**: The worker processes one job at a time (configurable for concurrency)
+### Get File Status
 
-For high-volume systems, consider:
-- Running workers as separate processes (use `npm run dev:all` or `npm run start:all`)
-- Running multiple worker instances to scale horizontally
-- Increasing worker concurrency in `queue/worker.js` 
+```
+GET /api/files/:fileId
+```
+
+Response:
+```json
+{
+  "id": "uuid-of-file",
+  "fileName": "example.jsonl",
+  "fileUrl": "https://example.com/path/to/file.jsonl",
+  "notes": "Optional notes or processing metadata",
+  "synced": true,
+  "createdAt": "2023-05-31T12:00:00Z",
+  "updatedAt": "2023-05-31T12:15:00Z",
+  "status": "completed"
+}
+```
+
+## File Processing Flow
+
+1. Client uploads a file to storage and gets a URL
+2. Client creates a file record in the database via POST /api/files
+3. Client triggers processing via POST /api/webhook/file-uploaded
+4. Server adds the job to the BullMQ queue
+5. Worker process picks up the job and:
+   - Downloads the file from the URL
+   - Parses the JSONL file line by line
+   - Creates conversation records in the database
+   - Links conversations to the file
+   - Updates the file status to completed
+6. Client can check processing status via GET /api/files/:fileId
+
+## Database Schema
+
+The application uses the following database schema:
+
+- **files**: Stores file metadata and processing status
+- **conversations**: Stores conversation data from the JSONL files
+- **file_conversations**: Links files to their conversations (many-to-many) 
