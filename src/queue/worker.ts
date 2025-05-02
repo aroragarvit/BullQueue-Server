@@ -105,11 +105,7 @@ async function parseJsonlFile(filePath: string, fileId: string, job: any): Promi
     for (const line of lines) {
       try {
         const jsonData = JSON.parse(line);
-        console.log("jsonData", jsonData);
-        return {
-          totalConversations: 0,
-          conversationIds: []
-        }
+
         currentBatch.push(jsonData);
         
         // When batch size is reached or on the last item, process the batch
