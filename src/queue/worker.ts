@@ -65,8 +65,8 @@ async function insertConversationBatch(conversationBatch: any[], fileId: string)
   
   // Insert conversations in a batch
   const conversationsToInsert = conversationBatch.map(jsonData => ({
-    // type convert this json data to be of type jsonb
-    messages: jsonData as JSON,
+    // Extract only the messages array from the jsonData
+    messages: jsonData.messages || [],
     deleted: false,
     edited: false
   }));
