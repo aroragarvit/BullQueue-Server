@@ -6,12 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "ts-node-dev --respawn src/index.ts",
-    "worker": "node dist/worker-process.js",
-    "dev:worker": "ts-node-dev --respawn src/worker-process.ts",
-    "dev:all": "concurrently \"npm run dev\" \"npm run dev:worker\"",
-    "start:all": "concurrently \"npm run start\" \"npm run worker\"",
-    "test": "jest"
+    "dev": "ts-node-dev --respawn src/index.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",

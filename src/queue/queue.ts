@@ -1,10 +1,5 @@
 import { Queue } from 'bullmq';
-import path from 'path';
-import dotenv from 'dotenv';
 import { FileProcessingJob } from '../types';
-
-// Load environment variables
-dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
 
 // Redis connection configuration
 const connection = {

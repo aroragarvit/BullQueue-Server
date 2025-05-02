@@ -1,14 +1,9 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import path from 'path';
 import { getFileById } from './database';
 import { addFileProcessingJob, queue } from './queue/queue';
 import { setupWorker } from './queue/worker';
 import { FileProcessingStatus } from './types';
-
-// Load environment variables
-dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
 
 // Initialize express app
 const app = express();

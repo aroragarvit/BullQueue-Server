@@ -1,13 +1,8 @@
-import { config } from 'dotenv';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import path from 'path';
 import { files, conversations, fileConversations } from './schema';
 import { eq } from 'drizzle-orm';
 import { FileProcessingStatus } from '../types';
-
-// Load environment variables
-config({ path: path.resolve(__dirname, '../../.env.local') });
 
 const connectionString = process.env.DATABASE_URL || '';
 const client = postgres(connectionString, {
@@ -15,8 +10,6 @@ const client = postgres(connectionString, {
 });
 
 export const db = drizzle(client);
-
-
 
 export const getFileById = async (fileId: string) => {
   const [fileRecord] = await db.select().from(files).where(eq(files.id, fileId));
