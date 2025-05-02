@@ -9,7 +9,8 @@ dotenv.config();
 const connection = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD
+  password: process.env.REDIS_PASSWORD,
+  tls: process.env.REDIS_HOST?.includes('upstash.io') ? {} : undefined
 };
 
 // Create a new queue named 'file-processing'
