@@ -3,7 +3,11 @@ import cors from 'cors';
 import { getFileById } from './database';
 import { addFileProcessingJob, queue } from './queue/queue';
 import { setupWorker } from './queue/worker';
-import { FileProcessingStatus } from './types';
+import dotenv from 'dotenv';
+
+
+// Load environment variables from .env file
+dotenv.config();
 
 // Initialize express app
 const app = express();

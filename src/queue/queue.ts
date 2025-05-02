@@ -1,5 +1,9 @@
 import { Queue } from 'bullmq';
 import { FileProcessingJob } from '../types';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config();
 
 // Redis connection configuration
 const connection = {

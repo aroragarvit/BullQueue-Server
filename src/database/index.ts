@@ -3,6 +3,10 @@ import postgres from 'postgres';
 import { files, conversations, fileConversations } from './schema';
 import { eq } from 'drizzle-orm';
 import { FileProcessingStatus } from '../types';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config();
 
 const connectionString = process.env.DATABASE_URL || '';
 const client = postgres(connectionString, {
