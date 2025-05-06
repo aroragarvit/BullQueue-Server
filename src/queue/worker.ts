@@ -64,12 +64,22 @@ async function insertConversationBatch(conversationBatch: any[], fileId: string)
   if (conversationBatch.length === 0) return [];
   
   // Insert conversations in a batch
-  const conversationsToInsert = conversationBatch.map(jsonData => ({
-    // Extract only the messages array from the jsonData
-    messages: jsonData.messages || [],
-    deleted: false,
-    edited: false
-  }));
+  const conversationsToInsert = conversationBatch.map(jsonData => {
+    const messages = jsonData.messages || [];
+    // Extract the last message text if available
+    let lastMessage = '';
+    if (messages.length > 0) {
+      const lastItem = messages[messages.length - 1];
+      lastMessage = lastItem.content || lastItem.text || lastItem.message || '';
+    }
+    
+    return {
+      messages: messages,
+      lastMessage: lastMessage,
+      deleted: false,
+      edited: false
+    };
+  });
   
   const insertedConversations = await db.insert(conversations)
     .values(conversationsToInsert)

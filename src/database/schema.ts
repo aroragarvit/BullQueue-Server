@@ -47,6 +47,7 @@ export const conversations = pgTable('conversations', {
     .primaryKey()
     .notNull(),
   messages: jsonb('conversation').notNull(),
+  lastMessage: text('last_message').default(''),
   deleted: boolean('deleted').default(false),
   edited: boolean('edited').default(false),
   createdAt: timestamp('created_at', {
